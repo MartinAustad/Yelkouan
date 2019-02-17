@@ -776,25 +776,33 @@ after<-withships+1
 selection<-unique(c(withships,before,after))
 selection<-selection[selection>0]
 
-monitornights_withoutnightdur <- monitornights[,-7]
-CaseControl<-monitornights_withoutnightdur%>%
+monitornights_withoutnightdur <- monitornights[,-7] #to remove problematic nightdur
+CaseControl<-monitornights_withoutnightdur%>% #monitornights
   filter(row_number() %in% selection)%>%
-  select(NightStarting,sunset,sunrise,ships)%>%
+  select(NightStarting,sunset,sunrise,ships)%>% #nightdur
   filter(sunrise %within% recordingperiod3)
 #TO DO DISCUSS WHETHER IT MAKES SENSE TO HAVE BEFORE AND AFTER BUNKERING PERIODS EQUAL TO THE BUNKERING PERIOD(i.e. NOT JUST 1 DAY BEFORE ND AFTER A 5 DAY BUNKERING EVENT)
 
 ### remove the lines outside the Case Control time periods
 SQMcc<-data.frame()
-for(i in selection){
-  x<-SQM %>%
-    filter(NightStarting %in% CaseControl$NightStarting[i])
-  SQMcc<-rbind(SQMcc,x)
-}
+#for(i in selection){
+  #x<-SQM %>%
+    #filter(DateTime %within% monitornights$nightdur[i])
+  #SQMcc<-rbind(SQMcc,x)
+#}
+
+SQMcc <- merge(CaseControl, SQM, by= "NightStarting") 
+
+#TO DO CHECK IF THERE ARE ERRORS IN SCRIPT - F. EG 7 SHIPS APPEARING IN 1 ONE ROW OF SQM FOR NIGHTSTARTING 2018-04-15 BUT 4 IN CASECONTROL AND SHIPNIGHTS??
+
+SQMcc <- SQMcc %>%
+  filter(!(NightStarting=="2018-02-13"))%>%
+  arrange(DateTime)
 
 
 
 #pdf("SQM_YESH_activity.pdf", width=8, height=6)
-SQMcc %>% mutate(ships=ships*2) %>%   ### usually 2 boats operate for a bunkering event
+SQMcc %>% mutate(ships=ships.y*2) %>%   ### usually 2 boats operate for a bunkering event
   ggplot(aes(x=A1ind, y=MAG))+
   geom_point(aes(size=ships, color=ships)) +
   scale_color_gradient(low="black", high="yellow")+
@@ -841,7 +849,7 @@ MOVEScc <- MOVEScc %>%
   filter(direction=="IN") %>%
   mutate(count=1) %>%
   mutate(HR=as.factor(hour(DateTime)))%>%
-  mutate(MONTH=(month(DateTime, label=T, abbr=T)))%>%
+  mutate(MONTH=as.factor(month(DateTime)))%>% #, label=T, abbr=T, as.factor instead
   group_by(HR,MONTH,bunker,NightStarting) %>%
   summarise(activity=length(unique(TagID)))
 
@@ -881,6 +889,33 @@ ggplot(data=MOVEScc, aes(x=HRordered, y=activity, width=1))+
 Q3m<-glm(activity~HR+MONTH+bunker, data=MOVEScc, family=poisson)
 outQ3m<-summary(Q3m)
 outQ3m$coefficients
+
+##################################################################
+### PRODUCE OUTPUT REPORT WITH KEY TABLES AND FIGURES ###
+##################################################################
+#detach(packages:htmlwidgets)
+#detach(name="package:htmlwidgets", unload=TRUE, character.only=TRUE)
+#install.packages(c('plotly','htmlwidgets'), dependencies=T)
+
+library(markdown)
+library(rmarkdown)
+library(knitr)
+library(plotly)
+
+### create HTML report for overall summary report
+#Sys.setenv(RSTUDIO_PANDOC="C:/Program Files (x86)/RStudio/bin/pandoc")
+Sys.setenv(RSTUDIO_PANDOC="C:/Program Files/RStudio/bin/pandoc")
+
+
+#rmarkdown::render('C:\\STEFFEN\\RSPB\\Malta\\Analysis\\ColonyAttendance\\Malta_LightPollution_Summary.Rmd',
+#output_file = "Malta_LightPollution_Report.html",
+#output_dir = 'C:\\STEFFEN\\RSPB\\Malta\\Analysis\\ColonyAttendance')
+
+rmarkdown::render('C:\\Users\\Martin\\Documents\\working_folder\\RFID\\2018\\Analysis\\RFID\\Malta_LightPollution_Summary_2018.Rmd',
+                  output_file = "Malta_LightPollution_Report_2018_DRAFT.html",
+                  output_dir = 'C:\\Users\\Martin\\Documents\\working_folder\\RFID\\2018\\Analysis')
+
+
 
 
 
